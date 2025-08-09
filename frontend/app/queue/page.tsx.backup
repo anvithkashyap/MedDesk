@@ -1,0 +1,378 @@
+"use client";
+
+import { useState } from 'react';
+import { Navbar } from '@/components/ui/navbar';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Badge } from '@/components/ui/badge';
+import { 
+  Plus, 
+  Search, 
+  Filter,
+  Clock,
+  Users,
+  AlertTriangle,
+  Loader2,
+  Phone,
+  User,
+  Calendar,
+  CheckCircle,
+  PlayCircle
+} from 'lucide-react';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from '@/components/ui/dialog';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import { Textarea } from '@/components/ui/textarea';
+import { useAuth } from '@/lib/contexts/auth-context';
+import { ProtectedRoute } from '@/components/auth/protected-route';
+import { 
+  useQueue, 
+  useAddToQueue, 
+  useCompleteQueueItem,
+  useUpdateQueuePriority,
+  useActiveDoctors 
+} from '@/lib/hooks/use-api';
+import { QueueStatus, Priority } from '@/lib/types/api';
+import { toast } from 'sonner';
+
+function QueuePageContent() {
+  const { user } = useAuth();
+  const { data: queueItems = [], isLoading, refetch } = useQueue();
+  const { data: doctors = [] } = useActiveDoctors();
+  const addToQueue = useAddToQueue();
+  const completeQueueItem = useCompleteQueueItem();
+  const updatePriority = useUpdateQueuePriority();
+  const [searchTerm, setSearchTerm] = useState('');
+  const [statusFilter, setStatusFilter] = useState('all');
+  const [priorityFilter, setPriorityFilter] = useState('all');
+  const [isAddPatientOpen, setIsAddPatientOpen] = useState(false);
+  const [newPatient, setNewPatient] = useState({
+    name: '',
+    phone: '',
+    email: '',
+    age: '',
+    gender: 'male' as const,
+    priority: 'medium' as const,
+    symptoms: ''
+  });
+
+  const handleStatusUpdate = (patientId: string, status: Patient['status']) => {
+    setPatients(prev => prev.map(p => 
+      p.id === patientId ? { ...p, status } : p
+    ));
+  };
+
+  const handlePriorityUpdate = (patientId: string, priority: Patient['priority']) => {
+    setPatients(prev => prev.map(p => 
+      p.id === patientId ? { ...p, priority } : p
+    ));
+  };
+
+  const handleAddPatient = () => {
+    const nextQueueNumber = Math.max(...patients.map(p => p.queueNumber || 0)) + 1;
+    const patient: Patient = {
+      id: Date.now().toString(),
+      ...newPatient,
+      age: parseInt(newPatient.age),
+      queueNumber: nextQueueNumber,
+      status: 'waiting',
+      arrivalTime: new Date(),
+      estimatedWaitTime: 30
+    };
+    
+    setPatients(prev => [...prev, patient]);
+    setNewPatient({
+      name: '',
+      phone: '',
+      email: '',
+      age: '',
+      gender: 'male',
+      priority: 'medium',
+      symptoms: ''
+    });
+    setIsAddPatientOpen(false);
+  };
+
+  const filteredPatients = patients.filter(patient => {
+    const matchesSearch = patient.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                         patient.phone.includes(searchTerm);
+    const matchesStatus = statusFilter === 'all' || patient.status === statusFilter;
+    const matchesPriority = priorityFilter === 'all' || patient.priority === priorityFilter;
+    
+    return matchesSearch && matchesStatus && matchesPriority;
+  });
+
+  const queueStats = {
+    total: patients.length,
+    waiting: patients.filter(p => p.status === 'waiting').length,
+    withDoctor: patients.filter(p => p.status === 'with-doctor').length,
+    completed: patients.filter(p => p.status === 'completed').length,
+    avgWaitTime: 25
+  };
+
+  return (
+    <div className="min-h-screen bg-gray-50">
+      <Navbar user={mockUser} />
+      
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <div className="flex justify-between items-center mb-8">
+          <div>
+            <h1 className="text-3xl font-bold text-gray-900">Patient Queue</h1>
+            <p className="text-gray-600 mt-2">Manage walk-in patients and queue status</p>
+          </div>
+          <Dialog open={isAddPatientOpen} onOpenChange={setIsAddPatientOpen}>
+            <DialogTrigger asChild>
+              <Button className="flex items-center space-x-2">
+                <Plus className="h-4 w-4" />
+                <span>Add Walk-in Patient</span>
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="sm:max-w-md">
+              <DialogHeader>
+                <DialogTitle>Add Walk-in Patient</DialogTitle>
+                <DialogDescription>
+                  Register a new walk-in patient to the queue
+                </DialogDescription>
+              </DialogHeader>
+              <div className="space-y-4">
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <Label htmlFor="name">Full Name</Label>
+                    <Input
+                      id="name"
+                      value={newPatient.name}
+                      onChange={(e) => setNewPatient({ ...newPatient, name: e.target.value })}
+                      required
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="phone">Phone</Label>
+                    <Input
+                      id="phone"
+                      value={newPatient.phone}
+                      onChange={(e) => setNewPatient({ ...newPatient, phone: e.target.value })}
+                      required
+                    />
+                  </div>
+                </div>
+                <div>
+                  <Label htmlFor="email">Email (Optional)</Label>
+                  <Input
+                    id="email"
+                    type="email"
+                    value={newPatient.email}
+                    onChange={(e) => setNewPatient({ ...newPatient, email: e.target.value })}
+                  />
+                </div>
+                <div className="grid grid-cols-3 gap-4">
+                  <div>
+                    <Label htmlFor="age">Age</Label>
+                    <Input
+                      id="age"
+                      type="number"
+                      value={newPatient.age}
+                      onChange={(e) => setNewPatient({ ...newPatient, age: e.target.value })}
+                      required
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="gender">Gender</Label>
+                    <Select 
+                      value={newPatient.gender} 
+                      onValueChange={(value: 'male' | 'female' | 'other') => 
+                        setNewPatient({ ...newPatient, gender: value })
+                      }
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="male">Male</SelectItem>
+                        <SelectItem value="female">Female</SelectItem>
+                        <SelectItem value="other">Other</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div>
+                    <Label htmlFor="priority">Priority</Label>
+                    <Select 
+                      value={newPatient.priority} 
+                      onValueChange={(value: 'low' | 'medium' | 'high') => 
+                        setNewPatient({ ...newPatient, priority: value })
+                      }
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="low">Low</SelectItem>
+                        <SelectItem value="medium">Medium</SelectItem>
+                        <SelectItem value="high">High</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+                <div>
+                  <Label htmlFor="symptoms">Symptoms/Reason</Label>
+                  <Textarea
+                    id="symptoms"
+                    value={newPatient.symptoms}
+                    onChange={(e) => setNewPatient({ ...newPatient, symptoms: e.target.value })}
+                    placeholder="Brief description of symptoms or reason for visit"
+                  />
+                </div>
+                <Button onClick={handleAddPatient} className="w-full">
+                  Add to Queue
+                </Button>
+              </div>
+            </DialogContent>
+          </Dialog>
+        </div>
+
+        {/* Queue Stats */}
+        <div className="grid grid-cols-1 md:grid-cols-5 gap-4 mb-8">
+          <Card>
+            <CardContent className="p-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm text-gray-600">Total</p>
+                  <p className="text-2xl font-bold">{queueStats.total}</p>
+                </div>
+                <Users className="h-8 w-8 text-blue-500" />
+              </div>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="p-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm text-gray-600">Waiting</p>
+                  <p className="text-2xl font-bold text-yellow-600">{queueStats.waiting}</p>
+                </div>
+                <Clock className="h-8 w-8 text-yellow-500" />
+              </div>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="p-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm text-gray-600">With Doctor</p>
+                  <p className="text-2xl font-bold text-blue-600">{queueStats.withDoctor}</p>
+                </div>
+                <AlertTriangle className="h-8 w-8 text-blue-500" />
+              </div>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="p-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm text-gray-600">Completed</p>
+                  <p className="text-2xl font-bold text-green-600">{queueStats.completed}</p>
+                </div>
+                <Users className="h-8 w-8 text-green-500" />
+              </div>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="p-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm text-gray-600">Avg Wait</p>
+                  <p className="text-2xl font-bold text-purple-600">{queueStats.avgWaitTime}m</p>
+                </div>
+                <Clock className="h-8 w-8 text-purple-500" />
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Filters */}
+        <Card className="mb-6">
+          <CardContent className="p-4">
+            <div className="flex flex-wrap items-center gap-4">
+              <div className="flex-1 min-w-64">
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                  <Input
+                    placeholder="Search patients by name or phone..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="pl-10"
+                  />
+                </div>
+              </div>
+              <div className="flex items-center space-x-2">
+                <Filter className="h-4 w-4 text-gray-400" />
+                <Select value={statusFilter} onValueChange={setStatusFilter}>
+                  <SelectTrigger className="w-32">
+                    <SelectValue placeholder="Status" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Status</SelectItem>
+                    <SelectItem value="waiting">Waiting</SelectItem>
+                    <SelectItem value="with-doctor">With Doctor</SelectItem>
+                    <SelectItem value="completed">Completed</SelectItem>
+                    <SelectItem value="cancelled">Cancelled</SelectItem>
+                  </SelectContent>
+                </Select>
+                <Select value={priorityFilter} onValueChange={setPriorityFilter}>
+                  <SelectTrigger className="w-32">
+                    <SelectValue placeholder="Priority" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Priority</SelectItem>
+                    <SelectItem value="high">High</SelectItem>
+                    <SelectItem value="medium">Medium</SelectItem>
+                    <SelectItem value="low">Low</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Patient Queue */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {filteredPatients.map((patient) => (
+            <QueueCard
+              key={patient.id}
+              patient={patient}
+              onStatusUpdate={handleStatusUpdate}
+              onPriorityUpdate={handlePriorityUpdate}
+            />
+          ))}
+        </div>
+
+        {filteredPatients.length === 0 && (
+          <Card>
+            <CardContent className="p-8 text-center">
+              <Users className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+              <h3 className="text-lg font-semibold text-gray-900 mb-2">No patients found</h3>
+              <p className="text-gray-500">
+                {searchTerm || statusFilter !== 'all' || priorityFilter !== 'all' 
+                  ? 'Try adjusting your search or filters' 
+                  : 'Add your first walk-in patient to get started'}
+              </p>
+            </CardContent>
+          </Card>
+        )}
+      </main>
+    </div>
+  );
+}
