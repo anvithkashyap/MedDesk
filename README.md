@@ -46,6 +46,28 @@ A comprehensive medical front desk management system built with Next.js and Nest
 - **Admin**: `admin@meddesk.com` / `admin123`
 - **Receptionist**: `receptionist@meddesk.com` / `receptionist123`
 
+## 📸 Screenshots
+
+### Dashboard - Real-time Overview
+![Dashboard](Screenshots/Dashboard.png)
+*Main dashboard showing real-time statistics, today's appointments, and queue status overview*
+
+### Queue Management - Patient Flow Control
+![Queue Management](Screenshots/Queue%20Management.png)
+*Patient queue management with priority levels, status tracking, and real-time updates*
+
+### Appointments - Scheduling System
+![Appointments](Screenshots/Appointments.png)
+*Complete appointment scheduling interface with doctor assignments and time management*
+
+### Doctors - Medical Staff Management
+![Doctors](Screenshots/Doctors.png)
+*Doctor management system with CRUD operations and specialization tracking*
+
+### System Settings - Admin User Management
+![Admin System Settings](Screenshots/Admin%20only%20-%20System%20settings.png)
+*Admin-only user management interface with role-based access control and user administration*
+
 ## 📝 Quick Start Guide
 
 ### Prerequisites
